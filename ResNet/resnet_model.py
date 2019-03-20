@@ -16,7 +16,7 @@ def resnet_backbone(image, num_blocks, group_func, block_func, args):
     keep_probs = [None] * 4
     if args.dropblock_groups:
         # Scheduled keep_probs for DropBlock.
-        train_steps = tf.cast(1281167//args.batch, tf.float32)
+        train_steps = tf.cast(1281167//args.batch*105, tf.float32)
         current_step = tf.cast(get_global_step_var(), tf.float32)
         current_ratio = current_step / train_steps
         keep_prob = (1 - current_ratio * (1 - args.keep_prob))
