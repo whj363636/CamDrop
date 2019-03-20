@@ -19,11 +19,36 @@ from resnet_model import (
     resnet_group, se_resnet_bottleneck)
 
 
+parser = argparse.ArgumentParser()
+# generic:
+parser.add_argument('--gpu', help='comma separated list of GPU(s) to use. Default to use all available ones')
+parser.add_argument('--eval', action='store_true', help='run offline evaluation instead of training')
+parser.add_argument('--load', help='load a model for training or evaluation')
+
+# data:
+parser.add_argument('--data', help='ILSVRC dataset dir')
+parser.add_argument('--fake', help='use FakeData to debug or benchmark this model', action='store_true')
+parser.add_argument('--symbolic', help='use symbolic data loader', action='store_true')
+
+# model:
+parser.add_argument('--data-format', help='the image data layout used by the model', default='NCHW', choices=['NCHW', 'NHWC'])
+parser.add_argument('-d', '--depth', help='ResNet depth', type=int, default=50, choices=[18, 34, 50, 101, 152])
+parser.add_argument('--weight-decay-norm', action='store_true', help="apply weight decay on normalization layers (gamma & beta)." "This is used in torch/pytorch, and slightly " "improves validation accuracy of large models.")
+parser.add_argument('--batch', default=256, type=int, help="total batch size. " "Note that it's best to keep per-GPU batch size in [32, 64] to obtain the best accuracy." "Pretrained models listed in README were trained with batch=32x8.")
+parser.add_argument('--mode', choices=['resnet', 'preact', 'se'], help='variants of resnet to use', default='resnet')
+
+
+parser.add_argument('--keep_prob', type=float, default=0.9, help='The keep probabiltiy of dropblock.')
+parser.add_argument('--dropblock_groups', type=str, default='3,4', help='strategy for dropblock, like [g, t]')
+args = parser.parse_args()
+
+
 class Model(ImageNetModel):
-    def __init__(self, depth, mode='resnet'):
+    def __init__(self, depth, keep_probs, mode='resnet'):
         if mode == 'se':
             assert depth >= 50
 
+        self.keep_probs = keep_probs
         self.mode = mode
         basicblock = preresnet_basicblock if mode == 'preact' else resnet_basicblock
         bottleneck = {
@@ -40,9 +65,7 @@ class Model(ImageNetModel):
 
     def get_logits(self, image):
         with argscope([Conv2D, MaxPooling, GlobalAvgPooling, BatchNorm], data_format=self.data_format):
-            return resnet_backbone(
-                image, self.num_blocks,
-                preresnet_group if self.mode == 'preact' else resnet_group, self.block_func)
+            return resnet_backbone(image, self.num_blocks, preresnet_group if self.mode == 'preact' else resnet_group, self.block_func, args)
 
 
 def get_config(model):
@@ -102,38 +125,10 @@ def get_config(model):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    # generic:
-    parser.add_argument('--gpu', help='comma separated list of GPU(s) to use. Default to use all available ones')
-    parser.add_argument('--eval', action='store_true', help='run offline evaluation instead of training')
-    parser.add_argument('--load', help='load a model for training or evaluation')
-
-    # data:
-    parser.add_argument('--data', help='ILSVRC dataset dir')
-    parser.add_argument('--fake', help='use FakeData to debug or benchmark this model', action='store_true')
-    parser.add_argument('--symbolic', help='use symbolic data loader', action='store_true')
-
-    # model:
-    parser.add_argument('--data-format', help='the image data layout used by the model',
-                        default='NCHW', choices=['NCHW', 'NHWC'])
-    parser.add_argument('-d', '--depth', help='ResNet depth',
-                        type=int, default=50, choices=[18, 34, 50, 101, 152])
-    parser.add_argument('--weight-decay-norm', action='store_true',
-                        help="apply weight decay on normalization layers (gamma & beta)."
-                             "This is used in torch/pytorch, and slightly "
-                             "improves validation accuracy of large models.")
-    parser.add_argument('--batch', default=256, type=int,
-                        help="total batch size. "
-                        "Note that it's best to keep per-GPU batch size in [32, 64] to obtain the best accuracy."
-                        "Pretrained models listed in README were trained with batch=32x8.")
-    parser.add_argument('--mode', choices=['resnet', 'preact', 'se'],
-                        help='variants of resnet to use', default='resnet')
-    args = parser.parse_args()
-
     if args.gpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-    model = Model(args.depth, args.mode)
+    model = Model(args.depth, args.keep_prob, args.mode)
     model.data_format = args.data_format
     if args.weight_decay_norm:
         model.weight_decay_pattern = ".*/W|.*/gamma|.*/beta"
@@ -148,8 +143,8 @@ if __name__ == '__main__':
         else:
             logger.set_logger_dir(
                 os.path.join('train_log',
-                             'imagenet-{}-d{}-batch{}'.format(
-                                 args.mode, args.depth, args.batch)))
+                             'imagenet-{}-d{}-batch{}-drop{}-groups{}'.format(
+                                 args.mode, args.depth, args.batch, args.keep_prob, args.dropblock_groups)))
 
         config = get_config(model)
         if args.load:
