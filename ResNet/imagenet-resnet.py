@@ -40,6 +40,7 @@ parser.add_argument('--mode', choices=['resnet', 'preact', 'se'], help='variants
 
 parser.add_argument('--keep_prob', type=float, default=0.9, help='The keep probabiltiy of dropblock.')
 parser.add_argument('--dropblock_groups', type=str, default='3,4', help='strategy for dropblock, like [g, t]')
+parser.add_argument('--ablation', type=str, default='', help='.')
 args = parser.parse_args()
 
 
@@ -143,8 +144,8 @@ if __name__ == '__main__':
         else:
             logger.set_logger_dir(
                 os.path.join('train_log',
-                             'imagenet-{}-d{}-batch{}-drop{}-groups{}'.format(
-                                 args.mode, args.depth, args.batch, args.keep_prob, args.dropblock_groups)))
+                             'imagenet-{}-d{}-batch{}-drop{}-groups{}-{}'.format(
+                                 args.mode, args.depth, args.batch, args.keep_prob, args.dropblock_groups, args.ablation)))
 
         config = get_config(model)
         if args.load:
