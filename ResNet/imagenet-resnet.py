@@ -24,6 +24,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', help='comma separated list of GPU(s) to use. Default to use all available ones')
 parser.add_argument('--eval', action='store_true', help='run offline evaluation instead of training')
 parser.add_argument('--load', help='load a model for training or evaluation')
+parser.add_argument('--seed', default=1234, type=int, help="seed")
 
 # data:
 parser.add_argument('--data', help='ILSVRC dataset dir')
@@ -39,7 +40,8 @@ parser.add_argument('--mode', choices=['resnet', 'preact', 'se'], help='variants
 
 
 parser.add_argument('--keep_prob', type=float, default=0.9, help='The keep probabiltiy of dropblock.')
-parser.add_argument('--dropblock_groups', type=str, default='3,4', help='strategy for dropblock, like [g, t]')
+parser.add_argument('--dropblock_groups', type=str, default='3,4', help='which group to drop')
+parser.add_argument('--strategy', type=str, default='', help='strategy for dropblock, decay or not')
 parser.add_argument('--ablation', type=str, default='', help='.')
 args = parser.parse_args()
 
@@ -126,6 +128,7 @@ def get_config(model):
 
 
 if __name__ == '__main__':
+    tf.random.set_random_seed(args.seed)
     if args.gpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 

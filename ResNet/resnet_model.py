@@ -6,7 +6,7 @@ import tensorflow as tf
 from tensorpack.models import BatchNorm, BNReLU, Conv2D, FullyConnected, GlobalAvgPooling, MaxPooling
 from tensorpack.tfutils.argscope import argscope, get_arg_scope
 from tensorpack.tfutils.common import get_global_step_var
-from dropblock import dropblock
+from dropblock import dropblock, dropblock3
 
 def resnet_backbone(image, num_blocks, group_func, block_func, args):
     # if keep_probs is None:
@@ -25,7 +25,7 @@ def resnet_backbone(image, num_blocks, group_func, block_func, args):
         for block_group in dropblock_groups:
             if block_group < 1 or block_group > 4:
                 raise ValueError('dropblock_groups should be a comma separated list of integers ' 'between 1 and 4 (dropblock_groups: {}).' .format(args.dropblock_groups))
-            keep_probs[block_group - 1] = 1 - ((1 - keep_prob) / 4.0**(4 - block_group))
+            keep_probs[block_group - 1] = 1 - ((1 - keep_prob) / 4.0**(4 - block_group)) if args.strategy == 'decay' else keep_prob 
 
     with argscope(Conv2D, use_bias=False, kernel_initializer=tf.variance_scaling_initializer(scale=2.0, mode='fan_out')):
         # Note that this pads the image by [2, 3] instead of [3, 2].
@@ -47,7 +47,6 @@ def resnet_group(name, l, block_func, features, count, stride, keep_prob, dropbl
             with tf.variable_scope('block{}'.format(i)):
                 l = block_func(l, features, stride if i == 0 else 1, keep_prob=keep_prob, dropblock_size=dropblock_size)
     return l
-
 
 def resnet_bottleneck(l, ch_out, stride, keep_prob, dropblock_size, stride_first=False):
     """
