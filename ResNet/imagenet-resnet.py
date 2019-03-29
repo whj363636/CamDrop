@@ -96,8 +96,8 @@ def get_config(model):
             EstimatedTimeLeft(),
             ScheduledHyperParamSetter(
                 'learning_rate', [
-                    (0, min(START_LR, BASE_LR)), (30, BASE_LR * 1e-1), (60, BASE_LR * 1e-2),
-                    (90, BASE_LR * 1e-3), (100, BASE_LR * 1e-4)]),
+                    (0, min(START_LR, BASE_LR)), (45, BASE_LR * 1e-1), (90, BASE_LR * 1e-2),
+                    (135, BASE_LR * 1e-3), (150, BASE_LR * 1e-4)]),
         ]
         if BASE_LR > START_LR:
             callbacks.append(
@@ -123,7 +123,7 @@ def get_config(model):
         data=data,
         callbacks=callbacks,
         steps_per_epoch=100 if args.fake else 1281167 // args.batch,
-        max_epoch=105,
+        max_epoch=160,
     )
 
 
