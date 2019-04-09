@@ -4,6 +4,7 @@
 
 import argparse
 import os
+import tensorflow as tf
 
 from tensorpack import QueueInput, TFDatasetInput, logger
 from tensorpack.callbacks import *
@@ -24,7 +25,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', help='comma separated list of GPU(s) to use. Default to use all available ones')
 parser.add_argument('--eval', action='store_true', help='run offline evaluation instead of training')
 parser.add_argument('--load', help='load a model for training or evaluation')
-parser.add_argument('--seed', default=1234, type=int, help="seed")
+# parser.add_argument('--seed', default=1234, type=int, help="seed")
 
 # data:
 parser.add_argument('--data', help='ILSVRC dataset dir')
@@ -38,11 +39,13 @@ parser.add_argument('--weight-decay-norm', action='store_true', help="apply weig
 parser.add_argument('--batch', default=256, type=int, help="total batch size. " "Note that it's best to keep per-GPU batch size in [32, 64] to obtain the best accuracy." "Pretrained models listed in README were trained with batch=32x8.")
 parser.add_argument('--mode', choices=['resnet', 'preact', 'se'], help='variants of resnet to use', default='resnet')
 
-
+parser.add_argument('--lrs', nargs='+', default=[60, 120, 200, 210, 220], type=int, help='lr')
 parser.add_argument('--keep_prob', type=float, default=0.9, help='The keep probabiltiy of dropblock.')
+parser.add_argument('--blocksize', type=int, default=7, help='The size of dropblock.')
 parser.add_argument('--dropblock_groups', type=str, default='3,4', help='which group to drop')
 parser.add_argument('--strategy', type=str, default='', help='strategy for dropblock, decay or not')
 parser.add_argument('--ablation', type=str, default='', help='.')
+
 args = parser.parse_args()
 
 
@@ -94,10 +97,11 @@ def get_config(model):
         callbacks = [
             ModelSaver(),
             EstimatedTimeLeft(),
+
             ScheduledHyperParamSetter(
-                'learning_rate', [
-                    (0, min(START_LR, BASE_LR)), (45, BASE_LR * 1e-1), (90, BASE_LR * 1e-2),
-                    (135, BASE_LR * 1e-3), (150, BASE_LR * 1e-4)]),
+                'learning_rate', [ # 90-144-190-195-200 / 30-60-90-100-105
+                    (0, min(START_LR, BASE_LR)), (args.lrs[0], BASE_LR * 1e-1), (args.lrs[1], BASE_LR * 1e-2),
+                    (args.lrs[2], BASE_LR * 1e-3), (args,lr[3], BASE_LR * 1e-4)]),
         ]
         if BASE_LR > START_LR:
             callbacks.append(
@@ -123,12 +127,13 @@ def get_config(model):
         data=data,
         callbacks=callbacks,
         steps_per_epoch=100 if args.fake else 1281167 // args.batch,
-        max_epoch=160,
+        starting_epoch=1,
+        max_epoch=args.lrs[4],
     )
 
 
 if __name__ == '__main__':
-    tf.random.set_random_seed(args.seed)
+    # tf.random.set_random_seed(args.seed)
     if args.gpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 

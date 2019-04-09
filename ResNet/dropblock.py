@@ -10,7 +10,7 @@ import six
 from tensorpack.tfutils.tower import get_current_tower_context
 import tensorflow as tf
 
-__all__ = ['dropblock', 'dropblock2','dropblock3', 'dropblock4'] # 1: paper baseline; 2: group dropout; 3: shuffle group dropout  
+__all__ = ['dropblock', 'dropblock2','dropblock3', 'dropblock11'] # 1: paper baseline; 2: group dropout; 3: shuffle group dropout  
 
 def dropblock(net, keep_prob, dropblock_size, data_format='channels_first'):
   """DropBlock: a regularization method for convolutional neural networks.
@@ -171,9 +171,9 @@ def dropblock3(net, keep_prob, dropblock_size, G=32, data_format='channels_first
   if width != height:
     raise ValueError('Input tensor with width!=height is not supported.')
 
-  net = tf.transpose(net, [1, 0]) # [C, N, height, width]
+  net = tf.transpose(net, [1, 0, 2, 3]) # [C, N, height, width]
   net = tf.random_shuffle(net)
-  net = tf.transpose(net, [1, 0]) # [N, C, height, width]
+  net = tf.transpose(net, [1, 0, 2, 3]) # [N, C, height, width]
   net = tf.reshape(net, [N, G, C//G, height, width]) 
 
   dropblock_size = min(dropblock_size, width)
