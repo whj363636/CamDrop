@@ -116,7 +116,8 @@ def dropblock2(net, keep_prob, dropblock_size, G=32, data_format='channels_first
 
   dropblock_size = min(dropblock_size, width)
   # seed_drop_rate is the gamma parameter of DropBlcok.
-  seed_drop_rate = (1.0 - keep_prob) * width**2 / dropblock_size**2 / (width - dropblock_size + 1)**2
+  seed_drop_rate = (1.0 - keep_prob) * width**2 * G**2 / (C * dropblock_size**2) / (C * (width - dropblock_size + 1)**2)
+  # seed_drop_rate = (1.0 - keep_prob) * width**2 / dropblock_size**2 / (width - dropblock_size + 1)**2
 
   # Forces the block to be inside the feature map.
   w_i, h_i = tf.meshgrid(tf.range(width), tf.range(width))

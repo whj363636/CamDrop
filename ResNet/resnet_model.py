@@ -14,6 +14,10 @@ def resnet_backbone(image, num_blocks, group_func, block_func, args):
     # if not isinstance(keep_probs, list) or len(keep_probs) != 4:
     #     raise ValueError('keep_probs is not valid:', keep_probs)
     keep_probs = [None] * 4
+    total_steps = tf.cast(1281167//args.batch*args.lrs[-1], tf.float32)
+    anchor_steps = tf.cast(1281167//args.batch*(args.lrs[1]+args.lrs[2])/2, tf.float32)
+    current_step = tf.cast(get_global_step_var(), tf.float32)
+
     if args.dropblock_groups:
         # Computes DropBlock keep_probs for different block groups of ResNet.
         dropblock_groups = [int(x) for x in args.dropblock_groups.split(',')]
@@ -22,19 +26,12 @@ def resnet_backbone(image, num_blocks, group_func, block_func, args):
                 raise ValueError('dropblock_groups should be a comma separated list of integers ' 'between 1 and 4 (dropblock_groups: {}).' .format(args.dropblock_groups))
             if args.strategy == 'decay':
                 # Scheduled keep_probs for DropBlock.
-                total_steps = tf.cast(1281167//args.batch*args.lrs[-1], tf.float32)
-                current_step = tf.cast(get_global_step_var(), tf.float32)
-                
                 current_ratio = current_step / total_steps
                 keep_prob = (1 - current_ratio * (1 - args.keep_prob))
                 keep_probs[block_group - 1] = 1 - ((1 - keep_prob) / 4.0**(4 - block_group))  
             elif args.strategy == 'V':
                 # V-scheduled keep_probs for DropBlock.
-                total_steps = tf.cast(1281167//args.batch*args.lrs[-1], tf.float32)
-                anchor_steps = tf.cast(1281167//args.batch*(args.lrs[1]+args.lrs[2])/2, tf.float32)
-                current_step = tf.cast(get_global_step_var(), tf.float32)
-
-                current_ratio = current_step / anchor_steps if current_step < anchor_steps else (total_steps - current_step) / (total_steps - anchor_steps)
+                current_ratio = tf.cond(tf.less(current_step, anchor_steps), lambda: current_step / anchor_steps, lambda: (total_steps - current_step) / (total_steps - anchor_steps))
                 keep_prob = (1 - current_ratio * (1 - args.keep_prob))
                 keep_probs[block_group - 1] = 1 - ((1 - keep_prob) / 4.0**(4 - block_group))  
             else:

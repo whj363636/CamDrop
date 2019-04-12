@@ -101,7 +101,7 @@ def get_config(model):
             ScheduledHyperParamSetter(
                 'learning_rate', [ # 90-144-190-195-200 / 30-60-90-100-105
                     (0, min(START_LR, BASE_LR)), (args.lrs[0], BASE_LR * 1e-1), (args.lrs[1], BASE_LR * 1e-2),
-                    (args.lrs[2], BASE_LR * 1e-3), (args,lr[3], BASE_LR * 1e-4)]),
+                    (args.lrs[2], BASE_LR * 1e-3), (args.lrs[3], BASE_LR * 1e-4)]),
         ]
         if BASE_LR > START_LR:
             callbacks.append(
