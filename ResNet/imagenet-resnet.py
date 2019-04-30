@@ -15,9 +15,7 @@ from tensorpack.train import SyncMultiGPUTrainerReplicated, TrainConfig, launch_
 from tensorpack.utils.gpu import get_num_gpu
 
 from imagenet_utils import ImageNetModel, eval_on_ILSVRC12, get_imagenet_dataflow, get_imagenet_tfdata
-from resnet_model import (
-    preresnet_basicblock, preresnet_bottleneck, preresnet_group, resnet_backbone, resnet_basicblock, resnet_bottleneck,
-    resnet_group, se_resnet_bottleneck)
+from resnet_model import resnet_basicblock, preresnet_basicblock, preresnet_bottleneck, preresnet_group, se_resnet_bottleneck
 
 
 parser = argparse.ArgumentParser()
@@ -39,14 +37,22 @@ parser.add_argument('--weight-decay-norm', action='store_true', help="apply weig
 parser.add_argument('--batch', default=256, type=int, help="total batch size. " "Note that it's best to keep per-GPU batch size in [32, 64] to obtain the best accuracy." "Pretrained models listed in README were trained with batch=32x8.")
 parser.add_argument('--mode', choices=['resnet', 'preact', 'se'], help='variants of resnet to use', default='resnet')
 
-parser.add_argument('--lrs', nargs='+', default=[60, 120, 200, 210, 220], type=int, help='lr')
-parser.add_argument('--keep_prob', type=float, default=0.9, help='The keep probabiltiy of dropblock.')
+parser.add_argument('--lrs', nargs='+', default=[30, 60, 90, 100, 105], type=int, help='or [60, 120, 180, 190, 200]')
+parser.add_argument('--start', type=int, default=1, help='The start epoch.')
+parser.add_argument('--keep_prob', type=float, default=None, help='The keep probabiltiy of dropblock.')
 parser.add_argument('--blocksize', type=int, default=7, help='The size of dropblock.')
+parser.add_argument('--groupsize', type=int, default=64, help='The size of groupdrop.')
 parser.add_argument('--dropblock_groups', type=str, default='3,4', help='which group to drop')
-parser.add_argument('--strategy', type=str, default='', help='strategy for dropblock, decay or not')
+parser.add_argument('--norm', type=str, default='BN', help='BN or GN')
+parser.add_argument('--strategy', type=str, default=None, help='strategy for dropblock, decay or not')
 parser.add_argument('--ablation', type=str, default='', help='.')
 
 args = parser.parse_args()
+
+if args.norm == 'BN':
+    from resnet_model import resnet_backbone, resnet_bottleneck, resnet_group
+elif args.norm == 'GN':
+    from resnet_model_GN import resnet_backbone, resnet_bottleneck, resnet_group
 
 
 class Model(ImageNetModel):
@@ -127,7 +133,7 @@ def get_config(model):
         data=data,
         callbacks=callbacks,
         steps_per_epoch=100 if args.fake else 1281167 // args.batch,
-        starting_epoch=1,
+        starting_epoch=args.start,
         max_epoch=args.lrs[4],
     )
 
@@ -145,6 +151,9 @@ if __name__ == '__main__':
     if args.eval:
         batch = 128    # something that can run on one gpu
         ds = get_imagenet_dataflow(args.data, 'val', batch)
+        if args.atk_type:
+            attacker = FastGradientMethod(model)
+            x_adv = attacker.generate(x_input, eps=args.eps, clip_min=-1., clip_max=1.) 
         eval_on_ILSVRC12(model, get_model_loader(args.load), ds)
     else:
         if args.fake:
@@ -152,8 +161,8 @@ if __name__ == '__main__':
         else:
             logger.set_logger_dir(
                 os.path.join('train_log',
-                             'imagenet-{}-d{}-batch{}-drop{}-groups{}-{}'.format(
-                                 args.mode, args.depth, args.batch, args.keep_prob, args.dropblock_groups, args.ablation)))
+                             'imagenet-batch{}-norm{}-drop{}-groups{}-groupsize{}-{}'.format(
+                                 args.batch, args.norm, args.keep_prob, args.dropblock_groups, args.groupsize, args.ablation)))
 
         config = get_config(model)
         if args.load:
