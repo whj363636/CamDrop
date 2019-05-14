@@ -40,8 +40,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.')
 parser.add_argument('-n', '--num_units', help='number of units in each stage', type=int, default=18)
 parser.add_argument('--load', help='load model for training')
-parser.add_argument('--lrs', nargs='+', default=[82, 123, 300, 400], type=int, help='')
-parser.add_argument('--dropblock_groups', type=str, default='1,2,3', help='which group to drop')
+parser.add_argument('--lrs', nargs='+', default=[150, 250, 350, 400], type=int, help='[82, 123, 300, 400]')
+parser.add_argument('--dropblock_groups', type=str, default='3', help='which group to drop')
 
 parser.add_argument('--blocksize', type=int, default=8, help='The size of dropblock.')
 parser.add_argument('--keep_prob', type=float, default=None, help='The keep probabiltiy of dropblock.')
@@ -53,7 +53,7 @@ parser.add_argument('--strategy', type=str, default=None, help='strategy for dro
 parser.add_argument('--ablation', type=str, default='', help='.')
 
 args = parser.parse_args()
-
+gap_w = None
 
 def GroupNorm(x, group, gamma_initializer=tf.constant_initializer(1.)):
     """
@@ -134,6 +134,10 @@ class Model(ModelDesc):
                         keep_prob = (1 - current_ratio * (1 - args.keep_prob))
                         keep_probs[block_group - 1] = 1 - ((1 - keep_prob) / 4.0**(3 - block_group))  
 
+        def _create_random_target(label):
+            label_offset = tf.random_uniform(tf.shape(label), minval=1, maxval=10, dtype=tf.int32)
+            return tf.floormod(label + label_offset, tf.constant(10, tf.int32))
+
         def residual(name, l, keep_prob, increase_dim=False, first=False):
             shape = l.get_shape().as_list()
             in_channel = shape[1]
@@ -146,16 +150,16 @@ class Model(ModelDesc):
                 stride1 = 1
 
             with tf.variable_scope(name):
-                shortcut = l if first or increase_dim else dropblock3(l, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
+                shortcut = l if first or increase_dim else dropblock4(l, label=label, gap_w=gap_w, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
                 b1 = l if first else self.norm(l)
                 c1 = Conv2D('conv1', b1, out_channel, strides=stride1, activation=self.norm)
-                c1 = dropblock3(c1, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
+                c1 = dropblock4(c1, label=label, gap_w=gap_w, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
                 c2 = Conv2D('conv2', c1, out_channel)
-                c2 = dropblock3(c2, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
+                c2 = dropblock4(c2, label=label, gap_w=gap_w, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
 
                 if increase_dim:
                     shortcut = AvgPooling('pool', shortcut, 2)
-                    shortcut = dropblock3(shortcut, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
+                    shortcut = dropblock4(shortcut, label=label, gap_w=gap_w, keep_prob=keep_prob, dropblock_size=args.blocksize, G=args.groupsize)
                     shortcut = tf.pad(shortcut, [[0, 0], [in_channel // 2, in_channel // 2], [0, 0], [0, 0]])
 
                 l = c2 + shortcut
@@ -197,6 +201,9 @@ class Model(ModelDesc):
         add_moving_summary(cost, wd_cost)
 
         add_param_summary(('.*/W', ['histogram']))   # monitor W
+        global gap_w
+        with tf.variable_scope("linear", reuse=True):
+            gap_w = tf.get_variable('W')
         return tf.add_n([cost, wd_cost], name='cost')
 
     def optimizer(self):

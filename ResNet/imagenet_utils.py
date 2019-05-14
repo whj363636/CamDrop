@@ -333,7 +333,7 @@ class ImageNetModel(ModelDesc):
         if self.data_format == 'NCHW':
             image = tf.transpose(image, [0, 3, 1, 2])
 
-        logits = self.get_logits(image)
+        logits = self.get_logits(image, label)
         loss = ImageNetModel.compute_loss_and_error(
             logits, label, label_smoothing=self.label_smoothing)
 
@@ -354,7 +354,7 @@ class ImageNetModel(ModelDesc):
             return total_cost
 
     @abstractmethod
-    def get_logits(self, image):
+    def get_logits(self, image, label):
         """
         Args:
             image: 4D tensor of ``self.input_shape`` in ``self.data_format``

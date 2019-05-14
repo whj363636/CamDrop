@@ -37,7 +37,7 @@ parser.add_argument('--weight-decay-norm', action='store_true', help="apply weig
 parser.add_argument('--batch', default=256, type=int, help="total batch size. " "Note that it's best to keep per-GPU batch size in [32, 64] to obtain the best accuracy." "Pretrained models listed in README were trained with batch=32x8.")
 parser.add_argument('--mode', choices=['resnet', 'preact', 'se'], help='variants of resnet to use', default='resnet')
 
-parser.add_argument('--lrs', nargs='+', default=[30, 60, 90, 100, 105], type=int, help='or [60, 120, 180, 190, 200]')
+parser.add_argument('--lrs', nargs='+', default=[50, 80, 100, 105, 270], type=int, help='or [60, 120, 180, 190, 200]')
 parser.add_argument('--start', type=int, default=1, help='The start epoch.')
 parser.add_argument('--keep_prob', type=float, default=None, help='The keep probabiltiy of dropblock.')
 parser.add_argument('--blocksize', type=int, default=7, help='The size of dropblock.')
@@ -62,6 +62,8 @@ class Model(ImageNetModel):
 
         self.keep_probs = keep_probs
         self.mode = mode
+        self.flag = -1
+
         basicblock = preresnet_basicblock if mode == 'preact' else resnet_basicblock
         bottleneck = {
             'resnet': resnet_bottleneck,
@@ -75,9 +77,9 @@ class Model(ImageNetModel):
             152: ([3, 8, 36, 3], bottleneck)
         }[depth]
 
-    def get_logits(self, image):
+    def get_logits(self, image, label):
         with argscope([Conv2D, MaxPooling, GlobalAvgPooling, BatchNorm], data_format=self.data_format):
-            return resnet_backbone(image, self.num_blocks, preresnet_group if self.mode == 'preact' else resnet_group, self.block_func, args)
+            return resnet_backbone(image, label, self.num_blocks, preresnet_group if self.mode == 'preact' else resnet_group, self.block_func, self.flag, args)
 
 
 def get_config(model):
