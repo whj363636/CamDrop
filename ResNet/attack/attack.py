@@ -50,8 +50,8 @@ parser.add_argument('--eval', action='store_true', help='Evaluate a model on Ima
 
 parser.add_argument('--norm', type=str, default='BN', help='BN or GN')
 parser.add_argument('--ak_type', type=str, default='PGD', help='PGD or FGSM')
-parser.add_argument('--iter', help='Adversarial attack iteration',type=int, default=10)
-parser.add_argument('--epsilon', help='Adversarial attack maximal perturbation',type=float, default=7.0)
+parser.add_argument('--iter', help='Adversarial attack iteration',type=int, default=2)
+parser.add_argument('--epsilon', help='Adversarial attack maximal perturbation',type=float, default=5.0)
 parser.add_argument('--stepsize', help='Adversarial attack step size',type=float, default=1.0)
 
 
@@ -69,6 +69,8 @@ class Model(AdvImageNetModel):
 
         self.keep_probs = keep_probs
         self.mode = mode
+        self.flag = -1
+
         basicblock = preresnet_basicblock if mode == 'preact' else resnet_basicblock
         bottleneck = {
             'resnet': resnet_bottleneck,
@@ -82,9 +84,9 @@ class Model(AdvImageNetModel):
             152: ([3, 8, 36, 3], bottleneck)
         }[depth]
 
-    def get_logits(self, image):
+    def get_logits(self, image, label):
         with argscope([Conv2D, MaxPooling, GlobalAvgPooling, BatchNorm], data_format=self.data_format):
-            return resnet_backbone(image, self.num_blocks, preresnet_group if self.mode == 'preact' else resnet_group, self.block_func, args)
+            return resnet_backbone(image, label, self.num_blocks, preresnet_group if self.mode == 'preact' else resnet_group, self.block_func, self.flag, args)
 
 
 def create_eval_callback(name, tower_func, condition):

@@ -44,7 +44,7 @@ class FGSMAttacker():
         return tf.floormod(label + label_offset, tf.constant(1000, tf.int32))
 
     def attack(self, image_clean, label, model_func):
-        logits = model_func(image_clean)
+        logits = model_func(image_clean, label)
         logits = tf.cast(logits, tf.float32)
         target = self._create_random_target(label)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=target)
@@ -129,11 +129,11 @@ class PGDAttacker():
 
         def one_step_attack(adv):
             if not self.USE_FP16:
-                logits = model_func(adv)
+                logits = model_func(adv, label)
             else:
                 adv16 = tf.cast(adv, tf.float16)
                 with custom_getter_scope(fp16_getter):
-                    logits = model_func(adv16)
+                    logits = model_func(adv16, label)
                     logits = tf.cast(logits, tf.float32)
             # Note we don't add any summaries here when creating losses, because
             # summaries don't work in conditionals.
@@ -218,7 +218,7 @@ class AdvImageNetModel(ImageNetModel):
                 image, target_label = self.attacker.attack(image, label, self.get_logits)
                 image = tf.stop_gradient(image, name='adv_training_sample')
 
-            logits = self.get_logits(image)
+            logits = self.get_logits(image, label)
 
         loss = ImageNetModel.compute_loss_and_error(
             logits, label, label_smoothing=self.label_smoothing)

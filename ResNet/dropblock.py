@@ -249,7 +249,8 @@ def dropblock4(net, keep_prob, dropblock_size, flag=None, label=None, G=None, CG
     gap_w = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'linear/W') if flag > 0 else None
 
     if not gap_w is None:
-      gap_C, num = gap_w.get_shape().as_list() # [gap_C, num]
+      gap_w = tf.convert_to_tensor(gap_w, tf.float32)
+      gap_C, num = tf.squeeze(gap_w, 0).get_shape().as_list() # [gap_C, num]
       gap_w = tf.reshape(gap_w, [C, gap_C//C, num])
       gap_w = tf.reduce_mean(gap_w, reduction_indices=[1]) # [C, num]
       label = tf.gather(tf.transpose(gap_w), label) # [N, C]
@@ -276,7 +277,7 @@ def dropblock4(net, keep_prob, dropblock_size, flag=None, label=None, G=None, CG
       spt_mask = tf.reshape(spt_mask, [N, height, width, 1]) if data_format == 'channels_last' else tf.reshape(spt_mask, [N, 1, height, width])
 
       # channel
-      k = tf.cast(C/2, tf.int32)
+      k = tf.cast(C/8, tf.int32)
       topk, _ = tf.math.top_k(label, k=k+1) # [N, k]
       topk = tf.gather(topk, indices=k, axis=1) # [N, 1]
       topk = tf.expand_dims(topk, 1) # [N, C, 1]

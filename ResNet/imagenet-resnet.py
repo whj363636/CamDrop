@@ -5,6 +5,22 @@
 import argparse
 import os
 import tensorflow as tf
+import numpy as np
+import os
+import sys
+import cv2
+
+
+from tensorpack import *
+from tensorpack.dataflow import dataset
+from tensorpack.tfutils import gradproc, optimizer
+from tensorpack.tfutils.summary import *
+from tensorpack.tfutils.symbolic_functions import *
+from tensorpack.utils import viz
+from tensorpack.utils.gpu import get_num_gpu
+
+from imagenet_utils import ImageNetModel, fbresnet_augmentor
+from resnet_model import preresnet_basicblock, preresnet_group
 
 from tensorpack import QueueInput, TFDatasetInput, logger
 from tensorpack.callbacks import *
@@ -46,6 +62,7 @@ parser.add_argument('--dropblock_groups', type=str, default='3,4', help='which g
 parser.add_argument('--norm', type=str, default='BN', help='BN or GN')
 parser.add_argument('--strategy', type=str, default=None, help='strategy for dropblock, decay or not')
 parser.add_argument('--ablation', type=str, default='', help='.')
+parser.add_argument('--cam', action='store_true', help='run visualization')
 
 args = parser.parse_args()
 
@@ -140,6 +157,55 @@ def get_config(model):
     )
 
 
+def viz_cam(model_file, data_dir):
+    def get_data(train_or_test):
+        # completely copied from imagenet-resnet.py example
+        isTrain = train_or_test == 'train'
+
+        datadir = args.data
+        ds = dataset.ILSVRC12(datadir, train_or_test, shuffle=isTrain)
+        augmentors = fbresnet_augmentor(isTrain)
+        augmentors.append(imgaug.ToUint8())
+
+        ds = AugmentImageComponent(ds, augmentors, copy=False)
+        if isTrain:
+            ds = PrefetchDataZMQ(ds, min(25, multiprocessing.cpu_count()))
+        ds = BatchData(ds, BATCH_SIZE, remainder=not isTrain)
+        return ds
+
+    ds = get_data('val')
+    pred_config = PredictConfig(
+        model=Model(args.depth, args.keep_prob, args.mode),
+        session_init=get_model_loader(model_file),
+        input_names=['input', 'label'],
+        output_names=['wrong-top1', 'group3/block2/conv3/output', 'linear/W'],
+        return_input=True
+    )
+    meta = dataset.ILSVRCMeta().get_synset_words_1000()
+
+    pred = SimpleDatasetPredictor(pred_config, ds)
+    cnt = 0
+    for inp, outp in pred.get_result():
+        images, labels = inp
+        wrongs, convmaps, W = outp
+        batch = wrongs.shape[0]
+        for i in range(batch):
+            if wrongs[i]:
+                continue
+            weight = W[:, [labels[i]]].T    # 512x1
+            convmap = convmaps[i, :, :, :]  # 512xhxw
+            mergedmap = np.matmul(weight, convmap.reshape((2048, -1))).reshape(7, 7)
+            mergedmap = cv2.resize(mergedmap, (224, 224))
+            heatmap = viz.intensity_to_rgb(mergedmap, normalize=True)
+            blend = images[i] * 0.5 + heatmap * 0.5
+            concat = np.concatenate((images[i], heatmap, blend), axis=1)
+
+            classname = meta[labels[i]].split(',')[0]
+            if not os.path.exists('cam_db'):
+                os.makedirs('cam_db')
+            cv2.imwrite(os.path.join('cam_db', 'cam{}-{}.jpg'.format(cnt, classname)), concat)
+            cnt += 1
+
 if __name__ == '__main__':
     # tf.random.set_random_seed(args.seed)
     if args.gpu:
@@ -149,7 +215,10 @@ if __name__ == '__main__':
     model.data_format = args.data_format
     if args.weight_decay_norm:
         model.weight_decay_pattern = ".*/W|.*/gamma|.*/beta"
-
+    if args.cam:
+        BATCH_SIZE = 128    # something that can run on one gpu
+        viz_cam(args.load, args.data)
+        sys.exit()
     if args.eval:
         batch = 128    # something that can run on one gpu
         ds = get_imagenet_dataflow(args.data, 'val', batch)
