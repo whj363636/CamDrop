@@ -234,7 +234,7 @@ def dropblock3(net, keep_prob, dropblock_size, G=None, CG=None, data_format='cha
 
 
 def dropblock4(net, keep_prob, dropblock_size, flag=None, label=None, G=None, CG=None, data_format='channels_first'):
-  '''guided drop'''
+  '''CamDrop'''
   def _get_cam(net, label, flag, dropblock_size, data_format='channels_first'):
     '''
     net: [N, C, H, W]
