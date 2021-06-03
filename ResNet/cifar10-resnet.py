@@ -14,7 +14,7 @@ from tensorpack.utils.gpu import get_num_gpu
 from tensorpack.models import (MaxPooling, Conv2D, GlobalAvgPooling, BatchNorm, FullyConnected, layer_register)
 from tensorpack.tfutils import get_current_tower_context
 from tensorpack.tfutils.common import get_global_step_var
-from dropblock import dropblock, dropblock2, dropblock3, dropblock4
+from dropblock import dropblock, dropblock2, CamDrop
 
 """
 CIFAR10 ResNet example. See:

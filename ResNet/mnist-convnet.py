@@ -16,7 +16,7 @@ from tensorpack.tfutils.common import get_global_step_var
 from tensorpack import *
 from tensorpack.dataflow import dataset
 from tensorpack.tfutils import summary
-from dropblock import dropblock, dropblock2, dropblock3, dropblock4
+from dropblock import dropblock, dropblock2, CamDrop
 
 """
 MNIST ConvNet example.

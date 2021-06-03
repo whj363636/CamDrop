@@ -5,10 +5,10 @@ from tensorpack.tfutils.argscope import argscope, get_arg_scope
 from tensorpack.tfutils import get_current_tower_context
 from tensorpack.tfutils.common import get_global_step_var
 from tensorpack.models import (MaxPooling, Conv2D, GlobalAvgPooling, BatchNorm, FullyConnected, layer_register)
-from dropblock import dropblock, dropblock2, dropblock3, dropblock4
+from dropblock import dropblock, dropblock2
 
 
-def resnet_backbone(image, num_blocks, group_func, block_func, flag, args):
+def resnet_backbone(image, label, num_blocks, group_func, block_func, flag, args):
     # if keep_probs is None:
     #     keep_probs = [None] * 4
     # if not isinstance(keep_probs, list) or len(keep_probs) != 4:
@@ -68,13 +68,13 @@ def resnet_bottleneck(l, label, flag, ch_out, stride, keep_prob, dropblock_size,
     stride_first: original resnet put stride on first conv. fb.resnet.torch put stride on second conv.
     """
     shortcut = l
-    shortcut = dropblock4(shortcut, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
-    l = Conv2D('conv1', l, ch_out, 1, strides=stride if stride_first else 1, activation=BNReLU)
-    l = dropblock4(l, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
-    l = Conv2D('conv2', l, ch_out, 3, strides=1 if stride_first else stride, activation=BNReLU)
-    l = dropblock4(l, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
-    l = Conv2D('conv3', l, ch_out * 4, 1, activation=get_bn(zero_init=True))
-    l = dropblock4(l, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
+    shortcut = dropblock(shortcut, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
+    l = Conv2D('conv1', l, ch_out, 1, strides=stride if stride_first else 1, activation=GNReLU)
+    l = dropblock(l, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
+    l = Conv2D('conv2', l, ch_out, 3, strides=1 if stride_first else stride, activation=GNReLU)
+    l = dropblock(l, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
+    l = Conv2D('conv3', l, ch_out * 4, 1, activation=get_gn(zero_init=True))
+    l = dropblock(l, keep_prob=keep_prob, dropblock_size=dropblock_size, G=groupsize, label=label, flag=flag)
     out = l + resnet_shortcut(shortcut, ch_out * 4, stride, activation=get_gn(zero_init=False))
     return tf.nn.relu(out)
 
